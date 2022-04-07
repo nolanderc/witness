@@ -1,0 +1,161 @@
+mod parse;
+
+use std::{ffi::OsString, path::PathBuf, str::FromStr, time::Duration};
+
+use anyhow::{anyhow, Context};
+
+/// Trigger a command in response to certain events
+#[derive(Debug, PartialEq, clap::Parser)]
+#[clap(version = env!("CARGO_PKG_VERSION"))]
+#[clap(author = "Christofer Nolander <christofer.nolander@gmail.com>")]
+#[clap(trailing_var_arg(true))]
+#[clap(global_setting = clap::AppSettings::DeriveDisplayOrder)]
+pub struct Arguments {
+    #[clap(long)]
+    pub verbose: bool,
+
+    /// Watch over file changes
+    #[clap(next_help_heading = "FILES")]
+    #[clap(flatten)]
+    pub files: FileOptions,
+
+    /// Listen for network connections
+    #[clap(next_help_heading = "NETWORK")]
+    #[clap(flatten)]
+    pub network: NetworkOptions,
+
+    #[clap(flatten)]
+    #[clap(next_help_heading = "BEHAVIOUR")]
+    pub behaviour: BehaviourOptions,
+
+    /// The command to execute
+    #[clap(required = true)]
+    #[clap(multiple_values = true)]
+    #[clap(value_hint = clap::ValueHint::CommandWithArguments)]
+    pub command: Vec<String>,
+}
+
+/// Options affecting how watched files are treated.
+#[derive(Debug, PartialEq, clap::Parser)]
+pub struct FileOptions {
+    /// Paths to watch for changes
+    #[clap(long = "watch")]
+    #[clap(default_value = ".")]
+    #[clap(default_value_if("udp", None, None))]
+    #[clap(value_delimiter = ',')]
+    #[clap(multiple_occurrences = true)]
+    pub paths: Vec<PathBuf>,
+
+    /// Duration between when a file changes and execution is triggered
+    #[clap(long)]
+    #[clap(default_value = "50ms")]
+    #[clap(parse(try_from_str = parse::duration_from_str))]
+    pub debounce: Duration,
+
+    /// Only files with these extensions trigger execution
+    #[clap(short, long)]
+    #[clap(value_delimiter = ',')]
+    pub extensions: Option<Vec<OsString>>,
+}
+
+/// Options affecting how network connections are treated
+#[derive(Debug, PartialEq, clap::Parser)]
+pub struct NetworkOptions {
+    /// UDP packets to these ports trigger execution
+    #[clap(long)]
+    #[clap(value_delimiter = ',')]
+    #[clap(multiple_occurrences = true)]
+    pub udp: Vec<u16>,
+
+    /// TCP packets to these ports trigger execution
+    #[clap(long)]
+    #[clap(value_delimiter = ',')]
+    #[clap(multiple_occurrences = true)]
+    pub tcp: Vec<u16>,
+
+    /// Only network requests containing this exact string will trigger execution
+    #[clap(long = "key")]
+    #[clap(default_value_t = default_key())]
+    pub key: String,
+}
+
+fn default_key() -> String {
+    std::env::current_dir().map(|path| path.display().to_string()).unwrap_or_else(|_| "witness-default-directory-string-ba1c566a4bad288c22a0b7511458c92ca5822cd41632e51806e9ea75ed12d13d".to_string())
+}
+
+/// Options affecting behaivour of this utility
+#[derive(Debug, PartialEq, clap::Parser)]
+pub struct BehaviourOptions {
+    /// Clear the screen before every command invocation
+    #[clap(short, long)]
+    pub clear: bool,
+
+    /// Restart the command as soon as a source triggers
+    #[clap(short, long)]
+    pub restart: bool,
+}
+
+impl Arguments {
+    pub fn parse() -> Arguments {
+        <Arguments as clap::Parser>::parse()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    /// Watch the default path
+    #[test]
+    fn watch_default() {
+        let args = Arguments::parse_from("witness cargo check".split_whitespace());
+        assert_eq!(args.files.paths, [PathBuf::from(".")]);
+    }
+
+    /// Watch a specific path
+    #[test]
+    fn watch_specific() {
+        let args = Arguments::parse_from("witness --watch src cargo check".split_whitespace());
+        assert_eq!(args.files.paths, [PathBuf::from("src")]);
+    }
+
+    /// Multiple paths using a single flag
+    #[test]
+    fn watch_many() {
+        let args = Arguments::parse_from(
+            "witness --watch=src,test,examples cargo check".split_whitespace(),
+        );
+        assert_eq!(
+            args.files.paths,
+            [
+                PathBuf::from("src"),
+                PathBuf::from("test"),
+                PathBuf::from("examples")
+            ]
+        );
+    }
+
+    /// Multiple paths using multiple flags
+    #[test]
+    fn watch_multiple() {
+        let args = Arguments::parse_from(
+            "witness --watch=src --watch=test --watch=examples cargo check".split_whitespace(),
+        );
+        assert_eq!(
+            args.files.paths,
+            [
+                PathBuf::from("src"),
+                PathBuf::from("test"),
+                PathBuf::from("examples")
+            ]
+        );
+    }
+
+    /// If there is a flag enabling network usage, disable default file watching
+    #[test]
+    fn network_disables_files() {
+        let args = Arguments::parse_from("witness --udp=1234 cargo check".split_whitespace());
+        assert_eq!(args.files.paths, Vec::<PathBuf>::new());
+    }
+}
