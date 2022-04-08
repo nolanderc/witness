@@ -73,9 +73,10 @@ async fn run_watch(args: &cli::Watch) -> anyhow::Result<()> {
     let mut watcher = watcher::Watcher::new(&args)?;
 
     // Setup options for launching the specified command
-    let mut command = Command::new(&args.command[0]);
+    let mut command = Command::new(&args.shell);
     command
-        .args(&args.command[1..])
+        .arg("-c")
+        .args(&args.command)
         .kill_on_drop(true)
         .stdin(std::process::Stdio::inherit())
         .stdout(std::process::Stdio::inherit())

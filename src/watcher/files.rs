@@ -12,11 +12,6 @@ pub struct FileWatcher {
     watcher: notify::RecommendedWatcher,
 }
 
-pub struct FileFilter {
-    /// Only allow these specific extensions, or anything
-    pub extensions: Option<BTreeSet<OsString>>,
-}
-
 impl FileWatcher {
     pub fn new(
         options: &cli::FileOptions,
@@ -43,7 +38,7 @@ impl FileWatcher {
                 if let Some(path) = Self::modified_file(&event) {
                     match filter.matches_path(&path) {
                         Ok(()) => {
-                            debug!(?path, ?event, "file trigger");
+                            info!(?path, ?event, "file trigger");
                             let _ = triggers.try_send(ExecutionTrigger);
 
                             // skip all remaining values to avoid triggering twice
@@ -95,9 +90,18 @@ impl FileWatcher {
     }
 }
 
+pub struct FileFilter {
+    /// Only allow these specific extensions, or anything
+    extensions: Option<BTreeSet<OsString>>,
+
+    /// Files ignored by git should be respected
+    git_ignore: bool,
+}
+
 #[derive(Debug)]
 enum FilterReason {
     Extension,
+    GitIgnore,
 }
 
 impl FileFilter {
@@ -107,15 +111,46 @@ impl FileFilter {
                 .extensions
                 .as_ref()
                 .map(|extensions| extensions.iter().cloned().collect()),
+
+            git_ignore: !options.no_git_ignore,
         }
     }
 
     fn matches_path(&self, path: &Path) -> Result<(), FilterReason> {
+        self.check_extension(path)?;
+        if self.git_ignore {
+            self.check_git_ignore(path)?;
+        }
+        Ok(())
+    }
+
+    fn check_extension(&self, path: &Path) -> Result<(), FilterReason> {
         if let Some(extensions) = &self.extensions {
             match path.extension() {
                 Some(ext) if extensions.contains(ext) => {}
                 _ => return Err(FilterReason::Extension),
             }
+        }
+
+        Ok(())
+    }
+
+    fn check_git_ignore(&self, path: &Path) -> Result<(), FilterReason> {
+        use std::process::{Command, Stdio};
+
+        let result = Command::new("git")
+            .arg("check-ignore")
+            .arg(path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+
+        match result {
+            Err(error) => warn!(?error, "could not execute `git`"),
+            Ok(status) if status.code() == Some(0) => return Err(FilterReason::GitIgnore),
+            Ok(status) if status.code() == Some(1) => return Ok(()),
+            Ok(status) => warn!(?status, "`git-check-ignore` exited with error"),
         }
 
         Ok(())

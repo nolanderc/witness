@@ -13,6 +13,7 @@ use anyhow::{anyhow, Context};
 #[clap(args_conflicts_with_subcommands = true)]
 pub struct Arguments {
     #[clap(long)]
+    #[clap(global = true)]
     pub verbose: bool,
 
     #[clap(subcommand)]
@@ -54,6 +55,11 @@ pub struct Trigger {
 #[derive(Debug, clap::Parser)]
 #[clap(trailing_var_arg(true))]
 pub struct Watch {
+    /// The shell used for executing commands
+    #[clap(long)]
+    #[clap(env = "SHELL")]
+    pub shell: OsString,
+
     /// Watch over file changes
     #[clap(next_help_heading = "FILES")]
     #[clap(flatten)]
@@ -68,8 +74,7 @@ pub struct Watch {
     #[clap(next_help_heading = "BEHAVIOUR")]
     pub behaviour: BehaviourOptions,
 
-    /// The command to execute
-    // #[clap(required = true)]
+    /// The command to execute. This is passed to your shell
     #[clap(multiple_values = true)]
     #[clap(value_hint = clap::ValueHint::CommandWithArguments)]
     pub command: Vec<String>,
@@ -97,6 +102,10 @@ pub struct FileOptions {
     #[clap(short, long)]
     #[clap(value_delimiter = ',')]
     pub extensions: Option<Vec<OsString>>,
+
+    /// Include files excluded by Git
+    #[clap(long)]
+    pub no_git_ignore: bool,
 }
 
 /// Options affecting how network connections are treated
