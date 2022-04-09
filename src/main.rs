@@ -1,5 +1,7 @@
 //! CLI utility which allows you to listen for specific events and run commands in response.
 
+#![allow(clippy::single_char_pattern)]
+
 #[macro_use]
 extern crate tracing;
 
@@ -17,13 +19,14 @@ async fn main() -> anyhow::Result<()> {
     let args = cli::Arguments::parse();
     init_tracing(&args).context("failed to initialize logging")?;
 
-    match args.subcommand() {
-        cli::Subcommand::Watch(watch) => run_watch(&watch).await,
-        cli::Subcommand::Trigger(trigger) => run_trigger(&trigger).await,
+    if args.network.trigger {
+        run_trigger(&args.network).await
+    } else {
+        run_watch(&args).await
     }
 }
 
-async fn run_trigger(args: &cli::Trigger) -> anyhow::Result<()> {
+async fn run_trigger(args: &cli::NetworkOptions) -> anyhow::Result<()> {
     trigger_udp(&args.udp, &args.key).await?;
     trigger_tcp(&args.tcp, &args.key).await?;
     Ok(())
@@ -68,15 +71,21 @@ async fn trigger_tcp(ports: &[u16], key: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn run_watch(args: &cli::Watch) -> anyhow::Result<()> {
+async fn run_watch(args: &cli::Arguments) -> anyhow::Result<()> {
     // watch sources for updates
-    let mut watcher = watcher::Watcher::new(&args)?;
+    let mut watcher = watcher::Watcher::new(args)?;
 
     // Setup options for launching the specified command
-    let mut command = Command::new(&args.shell);
+    let mut command: Command;
+    if args.command.len() == 1 {
+        command = Command::new(&args.behaviour.shell);
+        command.arg("-c").arg(&args.command[0]);
+    } else {
+        command = Command::new(&args.command[0]);
+        command.args(&args.command[1..]);
+    }
+
     command
-        .arg("-c")
-        .args(&args.command)
         .kill_on_drop(true)
         .stdin(std::process::Stdio::inherit())
         .stdout(std::process::Stdio::inherit())
@@ -102,7 +111,7 @@ async fn run_watch(args: &cli::Watch) -> anyhow::Result<()> {
                 // wait for the child to terminate before restarting
                 exit_status = child.wait(), if restart_pending => {
                     let status = exit_status.context("waiting for child to terminate")?;
-                    info!(exit_status = status.code(), "child terminated");
+                    info!(exit_status = status.code(), "command terminated");
                     break;
                 }
 

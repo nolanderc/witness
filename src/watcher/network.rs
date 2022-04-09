@@ -101,7 +101,7 @@ async fn handle_udp_stream(
 
         let (count, addr) = result.context("failed to receive message")?;
         if buffer[..count].starts_with(key.as_bytes()) {
-            debug!(?addr, "triggered by UDP client");
+            info!(?addr, "triggered by UDP client");
             let _ = triggers.try_send(ExecutionTrigger);
         }
     }
@@ -136,7 +136,7 @@ async fn handle_tcp_stream(
                 Ok(Err(error)) => debug!(?addr, %error, "failed to receive keyphrase"),
                 Ok(Ok(count)) => {
                     if buffer[..count].starts_with(key.as_bytes()) {
-                        debug!(?addr, "triggered by TCP client");
+                        info!(?addr, "triggered by TCP client");
                         let _ = triggers.try_send(ExecutionTrigger);
                     }
                 }

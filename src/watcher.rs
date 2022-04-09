@@ -19,13 +19,13 @@ pub struct Watcher {
 pub struct ExecutionTrigger;
 
 impl Watcher {
-    pub fn new(args: &cli::Watch) -> anyhow::Result<Watcher> {
+    pub fn new(args: &cli::Arguments) -> anyhow::Result<Watcher> {
         let (sender, receiver) = tokio::sync::mpsc::channel(1);
 
         let files = files::FileWatcher::new(&args.files, sender.clone())
             .context("failed to create file watcher")?;
 
-        let network = network::NetworkWatcher::new(&args.network, sender.clone())
+        let network = network::NetworkWatcher::new(&args.network, sender)
             .context("failed to create network listener")?;
 
         Ok(Watcher {

@@ -1,5 +1,10 @@
 use anyhow::Context;
-use std::{collections::BTreeSet, ffi::OsString, path::Path, time::Duration};
+use std::{
+    collections::BTreeSet,
+    ffi::{OsStr, OsString},
+    path::Path,
+    time::Duration,
+};
 use tokio::sync::mpsc::Sender;
 
 use crate::cli;
@@ -19,8 +24,10 @@ impl FileWatcher {
     ) -> anyhow::Result<FileWatcher> {
         use notify::Watcher as _;
 
+        let debounce = options.debounce;
+
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut watcher = notify::watcher(sender, options.debounce.clone())?;
+        let mut watcher = notify::watcher(sender, debounce)?;
 
         // Watch the given path
         for path in options.paths.iter() {
@@ -30,13 +37,12 @@ impl FileWatcher {
         }
 
         let filter = FileFilter::from_args(options);
-        let debounce = options.debounce.clone();
 
         // Create a thread to glue sync and async parts together
         std::thread::spawn(move || {
             while let Ok(event) = receiver.recv() {
                 if let Some(path) = Self::modified_file(&event) {
-                    match filter.matches_path(&path) {
+                    match filter.matches_path(path) {
                         Ok(()) => {
                             info!(?path, ?event, "file trigger");
                             let _ = triggers.try_send(ExecutionTrigger);
@@ -67,7 +73,7 @@ impl FileWatcher {
             };
 
             // skip messages while we are within the deadline
-            if let Err(_) = receiver.recv_timeout(remaining) {
+            if receiver.recv_timeout(remaining).is_err() {
                 break;
             }
         }
@@ -138,6 +144,10 @@ impl FileFilter {
     fn check_git_ignore(&self, path: &Path) -> Result<(), FilterReason> {
         use std::process::{Command, Stdio};
 
+        if Self::contains_git_dir(path) {
+            return Err(FilterReason::GitIgnore);
+        }
+
         let result = Command::new("git")
             .arg("check-ignore")
             .arg(path)
@@ -154,5 +164,10 @@ impl FileFilter {
         }
 
         Ok(())
+    }
+
+    fn contains_git_dir(path: &Path) -> bool {
+        path.ancestors()
+            .any(|path| path.file_name() == Some(OsStr::new(".git")))
     }
 }
