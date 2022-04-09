@@ -116,7 +116,7 @@ async fn run_watch(args: &cli::Arguments) -> anyhow::Result<()> {
                     break;
                 }
 
-                // look for file modification notifications
+                // look for execution triggers
                 event = watcher.receiver.recv() => {
                     match event {
                         None => break 'outer Err(anyhow!("file watcher closed unexpectedly")),
@@ -130,8 +130,6 @@ async fn run_watch(args: &cli::Arguments) -> anyhow::Result<()> {
                         },
                     }
                 }
-
-                // look for UDP wakeup events
             }
         }
     }
