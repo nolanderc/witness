@@ -93,7 +93,8 @@ async fn run_watch(args: &cli::Arguments) -> anyhow::Result<()> {
 
     'outer: loop {
         // Clear screen before running command
-        if args.behaviour.clear {
+        let clear = !args.behaviour.no_clear;
+        if clear {
             let mut stdout = tokio::io::stdout();
             stdout.write_all(b"\x1bc").await?; // <-- VT100 escape code to clear screen
             stdout.flush().await?;
@@ -120,11 +121,11 @@ async fn run_watch(args: &cli::Arguments) -> anyhow::Result<()> {
                     match event {
                         None => break 'outer Err(anyhow!("file watcher closed unexpectedly")),
                         Some(watcher::ExecutionTrigger) => {
-                            if args.behaviour.restart {
+                            if args.behaviour.wait {
+                                restart_pending = true;
+                            } else {
                                 terminate_process(child).await?;
                                 break
-                            } else {
-                                restart_pending = true;
                             }
                         },
                     }

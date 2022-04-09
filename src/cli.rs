@@ -30,7 +30,11 @@ pub struct Arguments {
     #[clap(next_help_heading = "BEHAVIOUR")]
     pub behaviour: BehaviourOptions,
 
-    /// The command to execute. This is passed to your shell
+    /// The command to execute. This is passed to your shell.
+    ///
+    /// If you want to chain commands or pipe output from one command to another, surround the
+    /// commands in quotes. Example: `witness "ls | less"` would run `ls` and pipe its output to
+    /// `less`.
     #[clap(required_unless_present = "trigger")]
     #[clap(multiple_values = true)]
     #[clap(value_hint = clap::ValueHint::CommandWithArguments)]
@@ -97,7 +101,7 @@ pub struct NetworkOptions {
     pub key: String,
 
     /// Send a network packet instead of listening for it. Can be used to trigger another instance
-    /// of this app running on the same computer.
+    /// of witness running on the same machine.
     #[clap(long)]
     #[clap(conflicts_with_all = &["command", "files"])]
     pub trigger: bool,
@@ -109,13 +113,13 @@ const DEFAULT_KEY: &str = "witness-key";
 /// Options affecting behaivour of this utility
 #[derive(Debug, clap::Parser)]
 pub struct BehaviourOptions {
-    /// Clear the screen before every command invocation
-    #[clap(short, long)]
-    pub clear: bool,
+    /// Don't clear the screen before command invocation
+    #[clap(short = 'c', long)]
+    pub no_clear: bool,
 
-    /// Restart the command as soon as a source triggers
+    /// Wait on the command to finish before restarting
     #[clap(short, long)]
-    pub restart: bool,
+    pub wait: bool,
 
     /// The shell used to interpret commands
     #[clap(long)]
