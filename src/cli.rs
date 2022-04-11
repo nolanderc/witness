@@ -10,6 +10,7 @@ use anyhow::{anyhow, Context};
 #[clap(author = "Christofer Nolander <christofer.nolander@gmail.com>")]
 #[clap(global_setting = clap::AppSettings::DeriveDisplayOrder)]
 #[clap(trailing_var_arg(true))]
+#[clap(color = clap::ColorChoice::Auto)]
 pub struct Arguments {
     /// Enable more verbose logging.
     #[clap(long)]
@@ -123,6 +124,7 @@ pub struct BehaviourOptions {
 
     /// The shell used to interpret commands
     #[clap(long)]
+    #[clap(default_value = "sh")]
     #[clap(env = "SHELL")]
     pub shell: OsString,
 }
