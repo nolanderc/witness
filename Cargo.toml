@@ -1,6 +1,6 @@
 [package]
 name = "witness"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Christofer Nolander <christofer.nolander@gmail.com>"]
 description = "run commands when a file is modified or upon receiving TCP/UDP packets"
