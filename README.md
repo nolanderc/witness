@@ -7,6 +7,17 @@ Command line utility which lets you execute arbitrary commands in response to:
 - UDP packets and TCP connections
 
 
+## Installation
+
+### Using Cargo
+
+This requires the Rust toolchain to be [installed](https://www.rust-lang.org/learn/get-started).
+
+```sh
+cargo install witness
+```
+
+
 ## Motivation
 
 While writing code it is often necessary to run you compiler/build tool as you
@@ -77,3 +88,4 @@ $ witness "cargo check && witness --trigger --udp=1234"
 Which will run `cargo check` repeatedly as we make changes to our code. If our
 code successfully compiled, `witness` then triggers the other terminal by
 sending a UDP packet to port 1234.
+
