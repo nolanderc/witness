@@ -27,10 +27,11 @@ impl FileWatcher {
         let debounce = options.debounce;
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut watcher = notify::watcher(sender, debounce)?;
+        let mut watcher = notify::raw_watcher(sender)?;
 
         // Watch the given path
         for path in options.paths.iter() {
+            info!(?path, "watching path");
             watcher
                 .watch(path, notify::RecursiveMode::Recursive)
                 .with_context(|| format!("failed to watch path: {}", path.display()))?;
@@ -80,18 +81,13 @@ impl FileWatcher {
     }
 
     /// Given an event, returns the path that has been modified (if any)
-    fn modified_file(event: &notify::DebouncedEvent) -> Option<&Path> {
-        match event {
-            notify::DebouncedEvent::Create(path)
-            | notify::DebouncedEvent::Write(path)
-            | notify::DebouncedEvent::Chmod(path)
-            | notify::DebouncedEvent::Remove(path)
-            | notify::DebouncedEvent::Rename(_, path) => Some(path),
-
-            notify::DebouncedEvent::NoticeWrite(_)
-            | notify::DebouncedEvent::NoticeRemove(_)
-            | notify::DebouncedEvent::Rescan
-            | notify::DebouncedEvent::Error(_, _) => None,
+    fn modified_file(event: &notify::RawEvent) -> Option<&Path> {
+        use notify::Op;
+        let op = *event.op.as_ref().ok()?;
+        if op.intersects(Op::WRITE | Op::CREATE | Op::REMOVE | Op::RENAME | Op::CHMOD) {
+            event.path.as_deref()
+        } else {
+            None
         }
     }
 }
