@@ -91,6 +91,9 @@ async fn run_watch(args: &cli::Arguments) -> anyhow::Result<()> {
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 
+    let interrupt = tokio::signal::ctrl_c();
+    tokio::pin!(interrupt);
+
     'outer: loop {
         // Clear screen before running command
         let clear = !args.behaviour.no_clear;
@@ -129,6 +132,11 @@ async fn run_watch(args: &cli::Arguments) -> anyhow::Result<()> {
                             }
                         },
                     }
+                }
+
+                // catch any interrupts so that we can cleanup properly
+                _ = &mut interrupt => {
+                    return Ok(())
                 }
             }
         }
