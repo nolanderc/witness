@@ -2,7 +2,7 @@ use anyhow::Context;
 use std::{
     collections::BTreeSet,
     ffi::{OsStr, OsString},
-    path::Path,
+    path::{Path, PathBuf},
     time::Duration,
 };
 use tokio::sync::mpsc::Sender;
@@ -98,12 +98,16 @@ pub struct FileFilter {
 
     /// Files ignored by git should be respected
     git_ignore: bool,
+
+    /// Paths which are ignored
+    ignored: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
 enum FilterReason {
     Extension,
     GitIgnore,
+    Ignored,
 }
 
 impl FileFilter {
@@ -115,11 +119,14 @@ impl FileFilter {
                 .map(|extensions| extensions.iter().cloned().collect()),
 
             git_ignore: !options.no_git_ignore,
+
+            ignored: options.ignore.clone(),
         }
     }
 
     fn matches_path(&self, path: &Path) -> Result<(), FilterReason> {
         self.check_extension(path)?;
+        self.check_ignored(path)?;
         if self.git_ignore {
             self.check_git_ignore(path)?;
         }
@@ -165,5 +172,35 @@ impl FileFilter {
     fn contains_git_dir(path: &Path) -> bool {
         path.ancestors()
             .any(|path| path.file_name() == Some(OsStr::new(".git")))
+    }
+
+    fn check_ignored(&self, path: &Path) -> Result<(), FilterReason> {
+        let current_dir = std::env::current_dir().ok();
+
+        let relative = current_dir
+            .as_ref()
+            .and_then(|cwd| path.strip_prefix(cwd).ok());
+
+        for ignored in self.ignored.iter() {
+            let is_ignored = if let Some(relative) = relative.as_ref() {
+                if ignored.is_relative() {
+                    relative.starts_with(ignored)
+                } else {
+                    path.starts_with(ignored)
+                }
+            } else if ignored.is_absolute() {
+                path.starts_with(ignored)
+            } else {
+                // the other path is pointing outside this directory (we couldn't strip the
+                // current dir) and this path is relative. Thus they cannot be the same.
+                false
+            };
+
+            if is_ignored {
+                return Err(FilterReason::Ignored);
+            }
+        }
+
+        Ok(())
     }
 }

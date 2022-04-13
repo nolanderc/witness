@@ -46,7 +46,7 @@ pub struct Arguments {
 #[derive(Debug, clap::Parser)]
 #[clap(
     group = clap::ArgGroup::new("files")
-        .args(&["paths", "debounce", "extensions", "no-git-ignore"])
+        .args(&["paths", "ignore", "debounce", "extensions", "no-git-ignore"])
         .multiple(true)
 )]
 pub struct FileOptions {
@@ -57,7 +57,15 @@ pub struct FileOptions {
     #[clap(default_value_if("tcp", None, None))]
     #[clap(value_delimiter = ',')]
     #[clap(multiple_occurrences = true)]
+    #[clap(parse(from_os_str))]
     pub paths: Vec<PathBuf>,
+
+    /// Modifications to these paths will be ignored
+    #[clap(short, long = "ignore")]
+    #[clap(value_delimiter = ',')]
+    #[clap(multiple_occurrences = true)]
+    #[clap(parse(from_os_str))]
+    pub ignore: Vec<PathBuf>,
 
     /// Duration between when a file changes and execution is triggered
     #[clap(long)]
